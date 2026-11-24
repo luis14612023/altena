@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="BauDoku Pro">
+<title>BauDoku Pro – Tiefbau &amp; GPS</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
+body{background:#f1f5f9;color:#0f172a;padding-bottom:78px}
+header{background:#0f172a;color:#fff;padding:12px 14px;position:sticky;top:0;z-index:1000;box-shadow:0 2px 6px rgba(0,0,0,.2)}
+.h-top{display:flex;justify-content:space-between;align-items:center}
+.h-title{font-weight:700;font-size:17px;display:flex;align-items:center;gap:6px}
+.proj-bar{margin-top:8px;background:#1e293b;padding:7px 10px;border-radius:8px;font-size:13px;display:flex;justify-content:space-between;align-items:center;border:1px solid #334155}
+.proj-bar span{font-weight:600;color:#38bdf8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:72%}
+.proj-bar.none span{color:#fbbf24}
+.btn-xs{background:#334155;color:#fff;border:none;padding:4px 9px;border-radius:6px;font-size:12px;font-weight:600}
+main{padding:12px;max-width:640px;margin:0 auto}
+.card{background:#fff;border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.08);border:1px solid #e2e8f0}
+h2{font-size:16px;margin-bottom:10px;color:#0f172a}
+label{display:block;font-size:12px;font-weight:600;color:#475569;margin:8px 0 4px}
+input[type=text],textarea{width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-size:15px;background:#f8fafc}
+.btn{width:100%;padding:12px;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;margin-top:8px}
+.btn-primary{background:#0284c7;color:#fff}
+.btn-dark{background:#0f172a;color:#fff}
+.btn-green{background:#16a34a;color:#fff}
+.btn-orange{background:#ea580c;color:#fff}
+.btn-outline{background:#fff;color:#0f172a;border:1px solid #cbd5e1}
+.btn-danger{background:#fee2e2;color:#b91c1c}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.status-btn{padding:12px 8px;border-radius:10px;border:2px solid #cbd5e1;background:#fff;font-weight:700;font-size:13px;text-align:center;cursor:pointer}
+.status-btn.act-ist{border-color:#ea580c;background:#fff7ed;color:#c2410c}
+.status-btn.act-nach{border-color:#16a34a;background:#f0fdf4;color:#15803d}
+.gps-box{background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;padding:10px;font-size:13px;margin-top:8px;display:flex;justify-content:space-between;align-items:center}
+.preview-img{width:100%;border-radius:8px;margin-top:8px;display:none;max-height:280px;object-fit:contain;background:#000}
+#map,#trackMap{height:340px;width:100%;border-radius:10px;border:1px solid #cbd5e1;z-index:1}
+nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #cbd5e1;display:grid;grid-template-columns:repeat(5,1fr);z-index:1000;padding-bottom:env(safe-area-inset-bottom)}
+nav button{background:none;border:none;padding:9px 2px;font-size:11px;font-weight:600;color:#64748b;display:flex;flex-direction:column;align-items:center;gap:2px}
+nav button.active{color:#0284c7}
+nav button.locked{opacity:.4}
+nav button span.ico{font-size:18px}
+.tab{display:none}.tab.active{display:block}
+.item-row{border-bottom:1px solid #e2e8f0;padding:10px 0;display:flex;gap:10px;align-items:center}
+.item-row:last-child{border-bottom:none}
+.thumb{width:64px;height:64px;border-radius:8px;object-fit:cover;background:#e2e8f0;flex-shrink:0}
+.badge{display:inline-block;padding:2px 7px;border-radius:6px;font-size:11px;font-weight:700}
+.b-ist{background:#ffedd5;color:#c2410c}
+.b-nach{background:#dcfce7;color:#15803d}
+.proj-item{padding:12px;border:2px solid #e2e8f0;border-radius:10px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+.proj-item.sel{border-color:#0284c7;background:#f0f9ff}
+.stat-big{font-size:26px;font-weight:800;color:#0284c7;text-align:center;padding:8px;background:#f0f9ff;border-radius:10px;margin:8px 0}
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:2000;padding:16px;align-items:center;justify-content:center}
+.modal.open{display:flex}
+.modal-box{background:#fff;border-radius:14px;padding:16px;max-width:440px;width:100%;max-height:85vh;overflow-y:auto}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="h-top">
+    <div class="h-title">📍 BauDoku Pro</div>
+    <button class="btn-xs" onclick="openHelp()">📲 iPhone App</button>
+  </div>
+  <div id="projBar" class="proj-bar none" onclick="switchTab('projekte')">
+    <span id="activeProjLabel">⚠️ Bitte zuerst Projekt anlegen</span>
+    <button class="btn-xs">Wechseln</button>
+  </div>
+</header>
+
+<main>
+  <!-- TAB 1: PROJEKTE (ZUERST) -->
+  <section id="tab-projekte" class="tab active">
+    <div class="card">
+      <h2>1. Neues Bauvorhaben anlegen</h2>
+      <label>Projektname / Baustelle *</label>
+      <input type="text" id="pName" placeholder="z.B. Immenweg – Telekom Trasse">
+      <label>Ort / Auftraggeber (optional)</label>
+      <input type="text" id="pLoc" placeholder="z.B. Los 1 / Schönefeld">
+      <button class="btn btn-primary" onclick="createProject()">➕ Projekt anlegen &amp; starten</button>
+    </div>
+    <div class="card">
+      <h2>Vorhandene Projekte</h2>
+      <div id="projectList">Noch keine Projekte angelegt.</div>
+    </div>
+  </section>
+
+  <!-- TAB 2: FOTO & GPS -->
+  <section id="tab-foto" class="tab">
+    <div class="card">
+      <h2>2. Bauzustand &amp; GPS-Foto</h2>
+      <label>Zustand wählen</label>
+      <div class="grid2">
+        <div id="btnIst" class="status-btn act-ist" onclick="setStatus('Ist-Zustand')">🟠 Ist-Zustand<br><small>Vorher / Bestand</small></div>
+        <div id="btnNach" class="status-btn" onclick="setStatus('Zustand nachher')">🟢 Zustand nachher<br><small>Fertigstellung</small></div>
+      </div>
+
+      <label>GPS-Position</label>
+      <div class="gps-box">
+        <div id="gpsText">Noch keine Koordinaten</div>
+        <button class="btn-xs" style="background:#0284c7" onclick="getGPS()">📡 GPS holen</button>
+      </div>
+
+      <label>Notiz / Stationierung (optional)</label>
+      <input type="text" id="fNote" placeholder="z.B. Hausanschluss Nr. 12, Tiefe 0,80m">
+
+      <input type="file" id="camInput" accept="image/*" capture="environment" style="display:none" onchange="handlePhoto(this)">
+      <input type="file" id="galInput" accept="image/*" style="display:none" onchange="handlePhoto(this)">
+
+      <div class="grid2">
+        <button class="btn btn-dark" onclick="triggerCam('camInput')">📷 Kamera</button>
+        <button class="btn btn-outline" onclick="triggerCam('galInput')">🖼️ Galerie</button>
+      </div>
+
+      <img id="photoPreview" class="preview-img" alt="Vorschau">
+      <button id="savePhotoBtn" class="btn btn-green" style="display:none" onclick="savePhotoEntry()">💾 Mit GPS-Stempel speichern</button>
+    </div>
+  </section>
+
+  <!-- TAB 3: KARTE -->
+  <section id="tab-karte" class="tab">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <h2 style="margin:0">3. Projektkarte</h2>
+        <button class="btn-xs" style="background:#0284c7" onclick="toggleLayer()">🛰️ Karte / Satellit</button>
+      </div>
+      <div id="map"></div>
+      <div style="font-size:12px;color:#475569;margin-top:8px">🟠 Ist-Zustand &nbsp;|&nbsp; 🟢 Zustand nachher &nbsp;|&nbsp; 🔵 Trasse</div>
+    </div>
+  </section>
+
+  <!-- TAB 4: STRECKENMESSUNG -->
+  <section id="tab-strecke" class="tab">
+    <div class="card">
+      <h2>4. Trasse / Strecke messen</h2>
+      <div class="stat-big" id="distDisplay">0,00 m</div>
+      <div style="text-align:center;font-size:12px;color:#64748b;margin-bottom:8px" id="ptCount">0 Messpunkte gesetzt (Tippe auf Karte oder nutze GPS)</div>
+      <div id="trackMap"></div>
+      <div class="grid2">
+        <button class="btn btn-primary" onclick="addTrackGPS()">📍 GPS-Punkt setzen</button>
+        <button class="btn btn-outline" onclick="undoTrackPt()">↩️ Letzten zurück</button>
+      </div>
+      <label>Trassenname</label>
+      <input type="text" id="tName" placeholder="z.B. Hauptgraben Abschnitt A">
+      <div class="grid2">
+        <button class="btn btn-green" onclick="saveTrack()">💾 Strecke speichern</button>
+        <button class="btn btn-danger" onclick="clearTrack()">🗑️ Zurücksetzen</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- TAB 5: ÜBERSICHT & EXPORT -->
+  <section id="tab-export" class="tab">
+    <div class="card">
+      <h2>5. Dokumentation &amp; Export</h2>
+      <div class="grid2">
+        <button class="btn btn-primary" onclick="exportReport()">📄 Bau-Report (Druck/PDF)</button>
+        <button class="btn btn-outline" onclick="exportCSV()">📊 CSV / Excel</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Gespeicherte Fotos (<span id="cntPhotos">0</span>)</h2>
+      <div id="photoList">Keine Einträge vorhanden.</div>
+    </div>
+    <div class="card">
+      <h2>Gespeicherte Strecken (<span id="cntTracks">0</span>)</h2>
+      <div id="trackList">Keine Strecken gespeichert.</div>
+    </div>
+  </section>
+</main>
+
+<nav>
+  <button id="nav-projekte" class="active" onclick="switchTab('projekte')"><span class="ico">📁</span>Projekte</button>
+  <button id="nav-foto" class="locked" onclick="switchTab('foto')"><span class="ico">📷</span>Foto</button>
+  <button id="nav-karte" class="locked" onclick="switchTab('karte')"><span class="ico">🗺️</span>Karte</button>
+  <button id="nav-strecke" class="locked" onclick="switchTab('strecke')"><span class="ico">📏</span>Strecke</button>
+  <button id="nav-export" class="locked" onclick="switchTab('export')"><span class="ico">📋</span>Bericht</button>
+</nav>
+
+<div id="helpModal" class="modal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal-box">
+    <h2>📲 Auf iPhone als App speichern</h2>
+    <p style="font-size:14px;line-height:1.5;margin:10px 0">
+      1. Öffne deine <b>github.io</b>-Adresse in <b>Safari</b>.<br>
+      2. Tippe unten in der Mitte auf das <b>Teilen-Symbol</b> (Viereck mit Pfeil nach oben).<br>
+      3. Wähle <b>„Zum Home-Bildschirm“</b> und tippe oben rechts auf <b>„Hinzufügen“</b>.<br><br>
+      <i>Hinweis: Bei der ersten GPS- oder Kamera-Abfrage bitte „Beim Verwenden erlauben“ wählen.</i>
+    </p>
+    <button class="btn btn-primary" onclick="document.getElementById('helpModal').classList.remove('open')">Verstanden</button>
+  </div>
+</div>
+
+<script>
+let db, activeProjId = localStorage.getItem('bd_active_proj') || null;
+let curStatus = 'Ist-Zustand', curGPS = null, curImgData = null;
+let mainMap = null, trackMap = null, isSat = false, tileMain, tileTrack;
+let trackPts = [], trackLine = null, trackMarkers = [];
+
+// IndexedDB Setup
+const req = indexedDB.open('BauDokuProDB_v2', 1);
+req.onupgradeneeded = e => {
+  const d = e.target.result;
+  if (!d.objectStoreNames.contains('projects')) d.createObjectStore('projects', {keyPath: 'id'});
+  if (!d.objectStoreNames.contains('photos')) d.createObjectStore('photos', {keyPath: 'id'});
+  if (!d.objectStoreNames.contains('tracks')) d.createObjectStore('tracks', {keyPath: 'id'});
+};
+req.onsuccess = e => { db = e.target.result; refreshAll(); };
+
+function tx(store, mode='readonly') { return db.transaction(store, mode).objectStore(store); }
+function getAll(store) { return new Promise(r => { const q = tx(store).getAll(); q.onsuccess = () => r(q.result || []); }); }
+
+async function refreshAll() {
+  const projs = await getAll('projects');
+  const pList = document.getElementById('projectList');
+  const bar = document.getElementById('projBar');
+  const lbl = document.getElementById('activeProjLabel');
+  const active = projs.find(p => p.id === activeProjId);
+
+  if (!active) {
+    activeProjId = null;
+    localStorage.removeItem('bd_active_proj');
+    bar.classList.add('none');
+    lbl.textContent = '⚠️ Bitte zuerst Projekt anlegen';
+    ['foto','karte','strecke','export'].forEach(t => document.getElementById('nav-'+t).classList.add('locked'));
+  } else {
+    bar.classList.remove('none');
+    lbl.textContent = '📁 ' + active.name;
+    ['foto','karte','strecke','export'].forEach(t => document.getElementById('nav-'+t).classList.remove('locked'));
+  }
+
+  pList.innerHTML = projs.length ? projs.map(p => `
+    <div class="proj-item ${p.id===activeProjId?'sel':''}" onclick="selectProject('${p.id}')">
+      <div><b>${esc(p.name)}</b><br><small style="color:#64748b">${esc(p.loc||'Kein Ort')} · ${p.date}</small></div>
+      <button class="btn-xs" style="background:${p.id===activeProjId?'#0284c7':'#64748b'}">${p.id===activeProjId?'Aktiv':'Wählen'}</button>
+    </div>`).join('') : 'Noch keine Projekte angelegt.';
+
+  if (active) renderProjectData();
+}
+
+function createProject() {
+  const name = document.getElementById('pName').value.trim();
+  if (!name) return alert('Bitte einen Projektnamen eingeben.');
+  const id = 'p_' + Date.now();
+  const obj = { id, name, loc: document.getElementById('pLoc').value.trim(), date: new Date().toLocaleDateString('de-DE') };
+  tx('projects', 'readwrite').put(obj).onsuccess = () => {
+    document.getElementById('pName').value = '';
+    document.getElementById('pLoc').value = '';
+    selectProject(id);
+  };
+}
+
+function selectProject(id) {
+  activeProjId = id;
+  localStorage.setItem('bd_active_proj', id);
+  refreshAll().then(() => switchTab('foto'));
+}
+
+function switchTab(t) {
+  if (t !== 'projekte' && !activeProjId) {
+    alert('Bitte lege zuerst ein Projekt an oder wähle ein bestehendes aus.');
+    return;
+  }
+  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + t).classList.add('active');
+  document.getElementById('nav-' + t).classList.add('active');
+  if (t === 'karte') initMainMap();
+  if (t === 'strecke') initTrackMap();
+  if (t === 'export') renderProjectData();
+}
+
+function setStatus(s) {
+  curStatus = s;
+  document.getElementById('btnIst').className = 'status-btn' + (s==='Ist-Zustand'?' act-ist':'');
+  document.getElementById('btnNach').className = 'status-btn' + (s==='Zustand nachher'?' act-nach':'');
+  if (curImgData) drawWatermark();
+}
+
+function getGPS(cb) {
+  const el = document.getElementById('gpsText');
+  el.textContent = '⏳ Ermittle GPS...';
+  if (!navigator.geolocation) { el.textContent = '❌ GPS nicht unterstützt'; return; }
+  navigator.geolocation.getCurrentPosition(pos => {
+    curGPS = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: Math.round(pos.coords.accuracy) };
+    el.innerHTML = `✅ <b>${curGPS.lat.toFixed(6)}, ${curGPS.lng.toFixed(6)}</b> (±${curGPS.acc}m)`;
+    if (curImgData) drawWatermark();
+    if (cb) cb(curGPS);
+  }, err => {
+    el.textContent = '⚠️ GPS-Fehler: ' + err.message;
+  }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
+}
+
+function triggerCam(id) {
+  if (!curGPS) getGPS();
+  document.getElementById(id).click();
+}
+
+let rawFileData = null;
+function handlePhoto(input) {
+  if (!input.files || !input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = e => { rawFileData = e.target.result; drawWatermark(); };
+  reader.readAsDataURL(input.files[0]);
+}
+
+async function drawWatermark() {
+  if (!rawFileData) return;
+  const projs = await getAll('projects');
+  const proj = projs.find(p => p.id === activeProjId);
+  const img = new Image();
+  img.onload = () => {
+    const maxW = 1280;
+    const scale = Math.min(1, maxW / img.width);
+    const c = document.createElement('canvas');
+    c.width = img.width * scale;
+    c.height = img.height * scale;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(img, 0, 0, c.width, c.height);
+
+    const barH = Math.max(54, c.height * 0.085);
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.82)';
+    ctx.fillRect(0, c.height - barH, c.width, barH);
+    ctx.fillStyle = curStatus === 'Ist-Zustand' ? '#fb923c' : '#4ade80';
+    ctx.fillRect(0, c.height - barH, 10, barH);
+
+    const fs = Math.max(14, Math.round(barH * 0.32));
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `bold ${fs}px sans-serif`;
+    const gpsStr = curGPS ? `${curGPS.lat.toFixed(6)}, ${curGPS.lng.toFixed(6)} (±${curGPS.acc}m)` : 'Ohne GPS';
+    ctx.fillText(`${curStatus.toUpperCase()} | ${proj ? proj.name : ''}`, 20, c.height - barH + fs + 6);
+    ctx.font = `${Math.round(fs*0.9)}px monospace`;
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillText(`GPS: ${gpsStr} | ${new Date().toLocaleString('de-DE')}`, 20, c.height - 12);
+
+    curImgData = c.toDataURL('image/jpeg', 0.82);
+    const prev = document.getElementById('photoPreview');
+    prev.src = curImgData;
+    prev.style.display = 'block';
+    document.getElementById('savePhotoBtn').style.display = 'flex';
+  };
+  img.src = rawFileData;
+}
+
+function savePhotoEntry() {
+  if (!curImgData || !activeProjId) return;
+  const entry = {
+    id: 'ph_' + Date.now(),
+    projId: activeProjId,
+    status: curStatus,
+    gps: curGPS,
+    note: document.getElementById('fNote').value.trim(),
+    time: new Date().toLocaleString('de-DE'),
+    img: curImgData
+  };
+  tx('photos', 'readwrite').put(entry).onsuccess = () => {
+    rawFileData = null; curImgData = null;
+    document.getElementById('fNote').value = '';
+    document.getElementById('photoPreview').style.display = 'none';
+    document.getElementById('savePhotoBtn').style.display = 'none';
+    alert('✅ Foto mit GPS-Daten gespeichert!');
+    renderProjectData();
+  };
+}
+
+function getTileLayer(sat) {
+  return sat
+    ? L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {attribution: 'Esri'})
+    : L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {attribution: 'OSM'});
+}
+
+function toggleLayer() {
+  isSat = !isSat;
+  if (mainMap) { mainMap.removeLayer(tileMain); tileMain = getTileLayer(isSat).addTo(mainMap); }
+  if (trackMap) { trackMap.removeLayer(tileTrack); tileTrack = getTileLayer(isSat).addTo(trackMap); }
+}
+
+async function initMainMap() {
+  if (!window.L) return alert('Kartenbibliothek lädt noch – bitte Internetverbindung prüfen.');
+  setTimeout(async () => {
+    if (!mainMap) {
+      mainMap = L.map('map').setView([51.1657, 10.4515], 6);
+      tileMain = getTileLayer(isSat).addTo(mainMap);
+    }
+    mainMap.invalidateSize();
+    mainMap.eachLayer(l => { if (l instanceof L.CircleMarker || l instanceof L.Polyline) mainMap.removeLayer(l); });
+
+    const photos = (await getAll('photos')).filter(p => p.projId === activeProjId && p.gps);
+    const tracks = (await getAll('tracks')).filter(t => t.projId === activeProjId);
+    const bounds = [];
+
+    photos.forEach(p => {
+      const col = p.status === 'Ist-Zustand' ? '#ea580c' : '#16a34a';
+      const m = L.circleMarker([p.gps.lat, p.gps.lng], {radius: 9, fillColor: col, color: '#fff', weight: 2, fillOpacity: 0.95}).addTo(mainMap);
+      const gMaps = `https://www.google.com/maps?q=${p.gps.lat},${p.gps.lng}`;
+      m.bindPopup(`<b>${p.status}</b><br>${esc(p.note||'')}<br><small>${p.time}</small><br><img src="${p.img}" style="width:160px;margin:5px 0;border-radius:4px"><br><a href="${gMaps}" target="_blank">📍 In Google Maps öffnen</a>`);
+      bounds.push([p.gps.lat, p.gps.lng]);
+    });
+
+    tracks.forEach(t => {
+      L.polyline(t.pts, {color: '#0284c7', weight: 4}).addTo(mainMap).bindPopup(`<b>${esc(t.name)}</b><br>Länge: ${t.dist.toFixed(2)} m`);
+      t.pts.forEach(pt => bounds.push(pt));
+    });
+
+    if (bounds.length) mainMap.fitBounds(bounds, {padding: [30, 30], maxZoom: 18});
+  }, 150);
+}
+
+function initTrackMap() {
+  if (!window.L) return;
+  setTimeout(() => {
+    if (!trackMap) {
+      trackMap = L.map('trackMap').setView([51.1657, 10.4515], 15);
+      tileTrack = getTileLayer(isSat).addTo(trackMap);
+      trackMap.on('click', e => addTrackPoint(e.latlng.lat, e.latlng.lng));
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(p => trackMap.setView([p.coords.latitude, p.coords.longitude], 18));
+      }
+    }
+    trackMap.invalidateSize();
+  }, 150);
+}
+
+function addTrackGPS() {
+  if (!navigator.geolocation) return alert('GPS nicht verfügbar');
+  navigator.geolocation.getCurrentPosition(p => {
+    addTrackPoint(p.coords.latitude, p.coords.longitude);
+    if (trackMap) trackMap.setView([p.coords.latitude, p.coords.longitude], 19);
+  }, e => alert('GPS-Fehler: ' + e.message), {enableHighAccuracy: true});
+}
+
+function addTrackPoint(lat, lng) {
+  trackPts.push([lat, lng]);
+  redrawTrack();
+}
+
+function undoTrackPt() { trackPts.pop(); redrawTrack(); }
+function clearTrack() { trackPts = []; redrawTrack(); }
+
+function haversine(a, b) {
+  const R = 6371000, toR = d => d * Math.PI / 180;
+  const dLat = toR(b[0]-a[0]), dLon = toR(b[1]-a[1]);
+  const s = Math.sin(dLat/2)**2 + Math.cos(toR(a[0]))*Math.cos(toR(b[0]))*Math.sin(dLon/2)**2;
+  return 2 * R * Math.atan2(Math.sqrt(s), Math.sqrt(1-s));
+}
+
+function calcTotalDist() {
+  let d = 0;
+  for (let i=1; i<trackPts.length; i++) d += haversine(trackPts[i-1], trackPts[i]);
+  return d;
+}
+
+function redrawTrack() {
+  if (trackLine) trackMap.removeLayer(trackLine);
+  trackMarkers.forEach(m => trackMap.removeLayer(m));
+  trackMarkers = [];
+  trackPts.forEach((pt, idx) => {
+    trackMarkers.push(L.circleMarker(pt, {radius: 6, fillColor: idx===0?'#16a34a':'#0284c7', color: '#fff', weight: 2, fillOpacity: 1}).addTo(trackMap));
+  });
+  if (trackPts.length > 1) trackLine = L.polyline(trackPts, {color: '#0284c7', weight: 4}).addTo(trackMap);
+  const d = calcTotalDist();
+  document.getElementById('distDisplay').textContent = d >= 1000 ? (d/1000).toFixed(3)+' km' : d.toFixed(2)+' m';
+  document.getElementById('ptCount').textContent = `${trackPts.length} Messpunkte gesetzt`;
+}
+
+function saveTrack() {
+  if (trackPts.length < 2) return alert('Bitte mindestens 2 Punkte für eine Strecke setzen.');
+  const name = document.getElementById('tName').value.trim() || ('Trasse ' + new Date().toLocaleTimeString('de-DE'));
+  const obj = { id: 'tr_' + Date.now(), projId: activeProjId, name, pts: [...trackPts], dist: calcTotalDist(), time: new Date().toLocaleString('de-DE') };
+  tx('tracks', 'readwrite').put(obj).onsuccess = () => {
+    document.getElementById('tName').value = '';
+    clearTrack();
+    alert('✅ Strecke gespeichert!');
+    renderProjectData();
+  };
+}
+
+async function renderProjectData() {
+  const photos = (await getAll('photos')).filter(p => p.projId === activeProjId);
+  const tracks = (await getAll('tracks')).filter(t => t.projId === activeProjId);
+  document.getElementById('cntPhotos').textContent = photos.length;
+  document.getElementById('cntTracks').textContent = tracks.length;
+
+  document.getElementById('photoList').innerHTML = photos.length ? photos.map(p => `
+    <div class="item-row">
+      <img src="${p.img}" class="thumb">
+      <div style="flex:1;font-size:13px">
+        <span class="badge ${p.status==='Ist-Zustand'?'b-ist':'b-nach'}">${p.status}</span>
+        <div style="font-weight:600;margin-top:3px">${esc(p.note||'Ohne Notiz')}</div>
+        <div style="color:#64748b;font-size:11px">${p.gps ? p.gps.lat.toFixed(5)+', '+p.gps.lng.toFixed(5) : 'Kein GPS'} · ${p.time}</div>
+      </div>
+      <button class="btn-xs btn-danger" onclick="delItem('photos','${p.id}')">✕</button>
+    </div>`).join('') : 'Keine Einträge vorhanden.';
+
+  document.getElementById('trackList').innerHTML = tracks.length ? tracks.map(t => `
+    <div class="item-row">
+      <div style="flex:1;font-size:13px">
+        <b>${esc(t.name)}</b> – <span style="color:#0284c7;font-weight:700">${t.dist.toFixed(2)} m</span>
+        <div style="color:#64748b;font-size:11px">${t.pts.length} Punkte · ${t.time}</div>
+      </div>
+      <button class="btn-xs btn-danger" onclick="delItem('tracks','${t.id}')">✕</button>
+    </div>`).join('') : 'Keine Strecken gespeichert.';
+}
+
+function delItem(store, id) {
+  if (!confirm('Eintrag wirklich löschen?')) return;
+  tx(store, 'readwrite').delete(id).onsuccess = () => renderProjectData();
+}
+
+async function exportCSV() {
+  const photos = (await getAll('photos')).filter(p => p.projId === activeProjId);
+  const tracks = (await getAll('tracks')).filter(t => t.projId === activeProjId);
+  let csv = 'Typ;Status/Name;Notiz;Breitengrad;Laengengrad;Laenge_m;Zeitstempel\n';
+  photos.forEach(p => csv += `Foto;${p.status};"${(p.note||'').replace(/"/g,'""')}";${p.gps?p.gps.lat:''};${p.gps?p.gps.lng:''};;${p.time}\n`);
+  tracks.forEach(t => csv += `Strecke;"${t.name.replace(/"/g,'""')}";${t.pts.length} Punkte;;;${t.dist.toFixed(2)};${t.time}\n`);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type: 'text/csv;charset=utf-8;'}));
+  a.download = 'BauDoku_Export.csv';
+  a.click();
+}
+
+async function exportReport() {
+  const projs = await getAll('projects');
+  const proj = projs.find(p => p.id === activeProjId);
+  const photos = (await getAll('photos')).filter(p => p.projId === activeProjId);
+  const tracks = (await getAll('tracks')).filter(t => t.projId === activeProjId);
+  const w = window.open('', '_blank');
+  w.document.write(`<html><head><title>Bau-Report</title><style>body{font-family:sans-serif;padding:20px}img{max-width:320px;border-radius:6px;display:block;margin:6px 0}.box{border:1px solid #ccc;padding:10px;margin-bottom:12px;border-radius:8px;page-break-inside:avoid}</style></head><body>
+    <h1>Baudokumentation: ${esc(proj.name)}</h1><p>Ort: ${esc(proj.loc||'-')} | Stand: ${new Date().toLocaleString('de-DE')}</p>
+    <h2>Gemessene Strecken (${tracks.length})</h2>
+    ${tracks.map(t => `<div class="box"><b>${esc(t.name)}</b>: ${t.dist.toFixed(2)} m (${t.pts.length} Messpunkte) – ${t.time}</div>`).join('')}
+    <h2>Fotodokumentation (${photos.length})</h2>
+    ${photos.map(p => `<div class="box"><b>${p.status}</b> – ${esc(p.note||'Ohne Notiz')}<br><small>GPS: ${p.gps?p.gps.lat.toFixed(6)+', '+p.gps.lng.toFixed(6):'-'} | ${p.time}</small><img src="${p.img}"></div>`).join('')}
+    <script>window.onload=()=>window.print()<\/script></body></html>`);
+  w.document.close();
+}
+
+function openHelp() { document.getElementById('helpModal').classList.add('open'); }
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+</script>
+</body>
+</html>
