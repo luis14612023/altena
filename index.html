@@ -18,12 +18,12 @@ header{background:#0f172a;color:#fff;padding:12px 14px;position:sticky;top:0;z-i
 .proj-bar{margin-top:8px;background:#1e293b;padding:7px 10px;border-radius:8px;font-size:13px;display:flex;justify-content:space-between;align-items:center;border:1px solid #334155}
 .proj-bar span{font-weight:600;color:#38bdf8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:72%}
 .proj-bar.none span{color:#fbbf24}
-.btn-xs{background:#334155;color:#fff;border:none;padding:4px 9px;border-radius:6px;font-size:12px;font-weight:600}
+.btn-xs{background:#334155;color:#fff;border:none;padding:4px 9px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer}
 main{padding:12px;max-width:640px;margin:0 auto}
 .card{background:#fff;border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.08);border:1px solid #e2e8f0}
 h2{font-size:16px;margin-bottom:10px;color:#0f172a}
 label{display:block;font-size:12px;font-weight:600;color:#475569;margin:8px 0 4px}
-input[type=text],textarea{width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-size:15px;background:#f8fafc}
+input[type=text],select,textarea{width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-size:15px;background:#f8fafc}
 .btn{width:100%;padding:12px;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;margin-top:8px}
 .btn-primary{background:#0284c7;color:#fff}
 .btn-dark{background:#0f172a;color:#fff}
@@ -37,7 +37,7 @@ input[type=text],textarea{width:100%;padding:10px;border:1px solid #cbd5e1;borde
 .status-btn.act-nach{border-color:#16a34a;background:#f0fdf4;color:#15803d}
 .gps-box{background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;padding:10px;font-size:13px;margin-top:8px;display:flex;justify-content:space-between;align-items:center}
 .preview-img{width:100%;border-radius:8px;margin-top:8px;display:none;max-height:280px;object-fit:contain;background:#000}
-#map,#trackMap{height:340px;width:100%;border-radius:10px;border:1px solid #cbd5e1;z-index:1}
+#map,#trackMap{height:330px;width:100%;border-radius:10px;border:1px solid #cbd5e1;z-index:1}
 nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #cbd5e1;display:grid;grid-template-columns:repeat(5,1fr);z-index:1000;padding-bottom:env(safe-area-inset-bottom)}
 nav button{background:none;border:none;padding:9px 2px;font-size:11px;font-weight:600;color:#64748b;display:flex;flex-direction:column;align-items:center;gap:2px}
 nav button.active{color:#0284c7}
@@ -53,6 +53,10 @@ nav button span.ico{font-size:18px}
 .proj-item{padding:12px;border:2px solid #e2e8f0;border-radius:10px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
 .proj-item.sel{border-color:#0284c7;background:#f0f9ff}
 .stat-big{font-size:26px;font-weight:800;color:#0284c7;text-align:center;padding:8px;background:#f0f9ff;border-radius:10px;margin:8px 0}
+.photo-gen-box{background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:10px;margin-bottom:10px}
+.photo-pick-list{max-height:190px;overflow-y:auto;margin:8px 0;border:1px solid #cbd5e1;border-radius:8px;background:#fff}
+.pick-row{display:flex;align-items:center;gap:8px;padding:7px 9px;border-bottom:1px solid #e2e8f0;font-size:12px}
+.pick-row:last-child{border-bottom:none}
 .modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:2000;padding:16px;align-items:center;justify-content:center}
 .modal.open{display:flex}
 .modal-box{background:#fff;border-radius:14px;padding:16px;max-width:440px;width:100%;max-height:85vh;overflow-y:auto}
@@ -136,6 +140,24 @@ nav button span.ico{font-size:18px}
   <section id="tab-strecke" class="tab">
     <div class="card">
       <h2>4. Trasse / Strecke messen</h2>
+
+      <div class="photo-gen-box">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <b style="font-size:13px;color:#0369a1">📸 Strecke aus GPS-Fotos erstellen</b>
+          <button class="btn-xs" style="background:#0284c7" onclick="togglePhotoPick()">Auswählen</button>
+        </div>
+        <div id="photoPickPanel" style="display:none;margin-top:8px">
+          <label style="margin-top:2px">Fotos filtern nach Zustand</label>
+          <select id="photoTrackFilter" onchange="renderPhotoPickList()">
+            <option value="ALL">Alle GPS-Fotos (zeitlich sortiert)</option>
+            <option value="Ist-Zustand">🟠 Nur Ist-Zustand</option>
+            <option value="Zustand nachher">🟢 Nur Zustand nachher</option>
+          </select>
+          <div id="photoPickList" class="photo-pick-list"></div>
+          <button class="btn btn-primary" style="padding:9px;font-size:13px" onclick="buildTrackFromPhotos()">⚡ Ausgewählte Fotos zu Strecke verbinden</button>
+        </div>
+      </div>
+
       <div class="stat-big" id="distDisplay">0,00 m</div>
       <div style="text-align:center;font-size:12px;color:#64748b;margin-bottom:8px" id="ptCount">0 Messpunkte gesetzt (Tippe auf Karte oder nutze GPS)</div>
       <div id="trackMap"></div>
@@ -155,11 +177,16 @@ nav button span.ico{font-size:18px}
   <!-- TAB 5: ÜBERSICHT & EXPORT -->
   <section id="tab-export" class="tab">
     <div class="card">
-      <h2>5. Dokumentation &amp; Export</h2>
+      <h2>5. Dokumentation &amp; Datensicherung</h2>
       <div class="grid2">
         <button class="btn btn-primary" onclick="exportReport()">📄 Bau-Report (Druck/PDF)</button>
         <button class="btn btn-outline" onclick="exportCSV()">📊 CSV / Excel</button>
       </div>
+      <div class="grid2" style="margin-top:4px">
+        <button class="btn btn-dark" onclick="exportBackup()">💾 Komplett-Backup</button>
+        <button class="btn btn-outline" onclick="document.getElementById('restoreInput').click()">📥 Backup laden</button>
+      </div>
+      <input type="file" id="restoreInput" accept=".json,application/json" style="display:none" onchange="importBackup(this)">
     </div>
     <div class="card">
       <h2>Gespeicherte Fotos (<span id="cntPhotos">0</span>)</h2>
@@ -199,7 +226,6 @@ let curStatus = 'Ist-Zustand', curGPS = null, curImgData = null;
 let mainMap = null, trackMap = null, isSat = false, tileMain, tileTrack;
 let trackPts = [], trackLine = null, trackMarkers = [];
 
-// IndexedDB Setup
 const req = indexedDB.open('BauDokuProDB_v2', 1);
 req.onupgradeneeded = e => {
   const d = e.target.result;
@@ -268,7 +294,7 @@ function switchTab(t) {
   document.getElementById('tab-' + t).classList.add('active');
   document.getElementById('nav-' + t).classList.add('active');
   if (t === 'karte') initMainMap();
-  if (t === 'strecke') initTrackMap();
+  if (t === 'strecke') { initTrackMap(); renderPhotoPickList(); }
   if (t === 'export') renderProjectData();
 }
 
@@ -348,6 +374,7 @@ function savePhotoEntry() {
   if (!curImgData || !activeProjId) return;
   const entry = {
     id: 'ph_' + Date.now(),
+    ts: Date.now(),
     projId: activeProjId,
     status: curStatus,
     gps: curGPS,
@@ -421,6 +448,52 @@ function initTrackMap() {
     }
     trackMap.invalidateSize();
   }, 150);
+}
+
+function togglePhotoPick() {
+  const el = document.getElementById('photoPickPanel');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  if (el.style.display === 'block') renderPhotoPickList();
+}
+
+async function renderPhotoPickList() {
+  const filter = document.getElementById('photoTrackFilter').value;
+  let photos = (await getAll('photos')).filter(p => p.projId === activeProjId && p.gps);
+  if (filter !== 'ALL') photos = photos.filter(p => p.status === filter);
+  photos.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+
+  const box = document.getElementById('photoPickList');
+  if (!photos.length) {
+    box.innerHTML = '<div style="padding:10px;font-size:12px;color:#64748b">Keine Fotos mit GPS-Koordinaten in dieser Auswahl vorhanden.</div>';
+    return;
+  }
+  box.innerHTML = photos.map((p, i) => `
+    <label class="pick-row" style="margin:0;cursor:pointer">
+      <input type="checkbox" class="photo-track-cb" value="${p.id}" checked style="width:18px;height:18px">
+      <img src="${p.img}" style="width:36px;height:36px;border-radius:5px;object-fit:cover">
+      <div style="flex:1">
+        <b>#${i+1} ${p.status === 'Ist-Zustand' ? '🟠' : '🟢'} ${esc(p.note || p.status)}</b><br>
+        <span style="color:#64748b;font-size:11px">${p.gps.lat.toFixed(5)}, ${p.gps.lng.toFixed(5)} · ${p.time}</span>
+      </div>
+    </label>`).join('');
+}
+
+async function buildTrackFromPhotos() {
+  const checkedIds = Array.from(document.querySelectorAll('.photo-track-cb:checked')).map(cb => cb.value);
+  if (checkedIds.length < 2) return alert('Bitte mindestens 2 GPS-Fotos auswählen, um eine Strecke zu berechnen.');
+  let photos = (await getAll('photos')).filter(p => checkedIds.includes(p.id) && p.gps);
+  photos.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+
+  trackPts = photos.map(p => [p.gps.lat, p.gps.lng]);
+  redrawTrack();
+  if (trackMap && trackPts.length) {
+    trackMap.fitBounds(trackPts, {padding: [30, 30], maxZoom: 19});
+  }
+  const filter = document.getElementById('photoTrackFilter').value;
+  if (!document.getElementById('tName').value.trim()) {
+    document.getElementById('tName').value = `Fototrasse (${filter === 'ALL' ? 'Alle' : filter}, ${photos.length} Pkt.)`;
+  }
+  document.getElementById('photoPickPanel').style.display = 'none';
 }
 
 function addTrackGPS() {
@@ -507,6 +580,42 @@ async function renderProjectData() {
 function delItem(store, id) {
   if (!confirm('Eintrag wirklich löschen?')) return;
   tx(store, 'readwrite').delete(id).onsuccess = () => renderProjectData();
+}
+
+async function exportBackup() {
+  const data = {
+    version: 2,
+    exportedAt: new Date().toISOString(),
+    projects: await getAll('projects'),
+    photos: await getAll('photos'),
+    tracks: await getAll('tracks')
+  };
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], {type: 'application/json'}));
+  a.download = `BauDoku_Backup_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+}
+
+function importBackup(input) {
+  const f = input.files && input.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = async e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.projects || !data.photos) return alert('Ungültige Backup-Datei.');
+      const t = db.transaction(['projects','photos','tracks'], 'readwrite');
+      data.projects.forEach(x => t.objectStore('projects').put(x));
+      data.photos.forEach(x => t.objectStore('photos').put(x));
+      (data.tracks || []).forEach(x => t.objectStore('tracks').put(x));
+      t.oncomplete = () => {
+        alert(`✅ Backup geladen: ${data.projects.length} Projekte, ${data.photos.length} Fotos.`);
+        refreshAll();
+      };
+    } catch (err) { alert('Fehler beim Laden: ' + err.message); }
+  };
+  r.readAsText(f);
+  input.value = '';
 }
 
 async function exportCSV() {
