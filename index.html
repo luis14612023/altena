@@ -102,10 +102,10 @@ nav button span.ico{font-size:18px}
         <div id="btnNach" class="status-btn" onclick="setStatus('Zustand nachher')">🟢 Zustand nachher<br><small>Fertigstellung</small></div>
       </div>
 
-      <label>GPS-Position</label>
+      <label>GPS-Position (wird bei jeder Aufnahme neu ermittelt)</label>
       <div class="gps-box">
-        <div id="gpsText">Noch keine Koordinaten</div>
-        <button class="btn-xs" style="background:#0284c7" onclick="getGPS()">📡 GPS holen</button>
+        <div id="gpsText">Wird bei Kamera-Start neu erfasst</div>
+        <button class="btn-xs" style="background:#0284c7" onclick="getGPS()">📡 Neu orten</button>
       </div>
 
       <label>Notiz / Stationierung (optional)</label>
@@ -222,7 +222,7 @@ nav button span.ico{font-size:18px}
 
 <script>
 let db, activeProjId = localStorage.getItem('bd_active_proj') || null;
-let curStatus = 'Ist-Zustand', curGPS = null, curImgData = null;
+let curStatus = 'Ist-Zustand', curGPS = null, curImgData = null, gpsLoading = false, gpsReqToken = 0;
 let mainMap = null, trackMap = null, isSat = false, tileMain, tileTrack;
 let trackPts = [], trackLine = null, trackMarkers = [];
 
@@ -302,34 +302,65 @@ function setStatus(s) {
   curStatus = s;
   document.getElementById('btnIst').className = 'status-btn' + (s==='Ist-Zustand'?' act-ist':'');
   document.getElementById('btnNach').className = 'status-btn' + (s==='Zustand nachher'?' act-nach':'');
-  if (curImgData) drawWatermark();
+  if (rawFileData) drawWatermark();
 }
 
 function getGPS(cb) {
   const el = document.getElementById('gpsText');
-  el.textContent = '⏳ Ermittle GPS...';
-  if (!navigator.geolocation) { el.textContent = '❌ GPS nicht unterstützt'; return; }
+  curGPS = null;
+  gpsLoading = true;
+  const token = ++gpsReqToken;
+  el.textContent = '⏳ Ermittle frische GPS-Position...';
+  if (!navigator.geolocation) {
+    gpsLoading = false;
+    el.textContent = '❌ GPS nicht unterstützt';
+    return;
+  }
   navigator.geolocation.getCurrentPosition(pos => {
+    if (token !== gpsReqToken) return;
+    gpsLoading = false;
     curGPS = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: Math.round(pos.coords.accuracy) };
     el.innerHTML = `✅ <b>${curGPS.lat.toFixed(6)}, ${curGPS.lng.toFixed(6)}</b> (±${curGPS.acc}m)`;
-    if (curImgData) drawWatermark();
+    if (rawFileData) drawWatermark();
     if (cb) cb(curGPS);
   }, err => {
+    if (token !== gpsReqToken) return;
+    gpsLoading = false;
     el.textContent = '⚠️ GPS-Fehler: ' + err.message;
+    if (rawFileData) drawWatermark();
   }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
 }
 
 function triggerCam(id) {
-  if (!curGPS) getGPS();
-  document.getElementById(id).click();
+  const inp = document.getElementById(id);
+  inp.value = '';
+  getGPS();
+  inp.click();
 }
 
 let rawFileData = null;
 function handlePhoto(input) {
   if (!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  if (!gpsLoading) getGPS();
+
   const reader = new FileReader();
-  reader.onload = e => { rawFileData = e.target.result; drawWatermark(); };
-  reader.readAsDataURL(input.files[0]);
+  reader.onload = e => {
+    rawFileData = e.target.result;
+    if (gpsLoading && !curGPS) {
+      let waited = 0;
+      const waitTimer = setInterval(() => {
+        waited += 250;
+        if (!gpsLoading || curGPS || waited >= 6000) {
+          clearInterval(waitTimer);
+          drawWatermark();
+        }
+      }, 250);
+    } else {
+      drawWatermark();
+    }
+  };
+  reader.readAsDataURL(file);
 }
 
 async function drawWatermark() {
@@ -372,22 +403,28 @@ async function drawWatermark() {
 
 function savePhotoEntry() {
   if (!curImgData || !activeProjId) return;
+  if (gpsLoading && !curGPS) {
+    return alert('⏳ GPS-Position wird noch ermittelt – bitte 1–2 Sekunden warten.');
+  }
   const entry = {
     id: 'ph_' + Date.now(),
     ts: Date.now(),
     projId: activeProjId,
     status: curStatus,
-    gps: curGPS,
+    gps: curGPS ? { ...curGPS } : null,
     note: document.getElementById('fNote').value.trim(),
     time: new Date().toLocaleString('de-DE'),
     img: curImgData
   };
   tx('photos', 'readwrite').put(entry).onsuccess = () => {
-    rawFileData = null; curImgData = null;
+    rawFileData = null;
+    curImgData = null;
+    curGPS = null;
+    document.getElementById('gpsText').textContent = 'Bereit – wird bei nächster Aufnahme neu erfasst';
     document.getElementById('fNote').value = '';
     document.getElementById('photoPreview').style.display = 'none';
     document.getElementById('savePhotoBtn').style.display = 'none';
-    alert('✅ Foto mit GPS-Daten gespeichert!');
+    alert('✅ Foto mit aktueller GPS-Position gespeichert!');
     renderProjectData();
   };
 }
@@ -501,7 +538,7 @@ function addTrackGPS() {
   navigator.geolocation.getCurrentPosition(p => {
     addTrackPoint(p.coords.latitude, p.coords.longitude);
     if (trackMap) trackMap.setView([p.coords.latitude, p.coords.longitude], 19);
-  }, e => alert('GPS-Fehler: ' + e.message), {enableHighAccuracy: true});
+  }, e => alert('GPS-Fehler: ' + e.message), {enableHighAccuracy: true, maximumAge: 0});
 }
 
 function addTrackPoint(lat, lng) {
@@ -651,3 +688,4 @@ function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&
 </script>
 </body>
 </html>
+
