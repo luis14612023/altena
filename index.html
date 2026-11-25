@@ -9,6 +9,8 @@
 <title>BauDoku Pro – Tiefbau &amp; GPS</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/piexifjs@1.0.6/piexif.js"></script>
+<script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
 body{background:#f1f5f9;color:#0f172a;padding-bottom:78px}
@@ -57,6 +59,7 @@ nav button span.ico{font-size:18px}
 .photo-pick-list{max-height:190px;overflow-y:auto;margin:8px 0;border:1px solid #cbd5e1;border-radius:8px;background:#fff}
 .pick-row{display:flex;align-items:center;gap:8px;padding:7px 9px;border-bottom:1px solid #e2e8f0;font-size:12px}
 .pick-row:last-child{border-bottom:none}
+.toggle-row{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:13px;color:#334155;background:#f8fafc;padding:8px 10px;border-radius:8px;border:1px solid #e2e8f0}
 .modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:2000;padding:16px;align-items:center;justify-content:center}
 .modal.open{display:flex}
 .modal-box{background:#fff;border-radius:14px;padding:16px;max-width:440px;width:100%;max-height:85vh;overflow-y:auto}
@@ -111,6 +114,11 @@ nav button span.ico{font-size:18px}
       <label>Notiz / Stationierung (optional)</label>
       <input type="text" id="fNote" placeholder="z.B. Hausanschluss Nr. 12, Tiefe 0,80m">
 
+      <label class="toggle-row">
+        <input type="checkbox" id="autoGalleryShare" checked style="width:18px;height:18px">
+        <span>Nach Speichern direkt für iPhone-Galerie öffnen (mit GPS-EXIF)</span>
+      </label>
+
       <input type="file" id="camInput" accept="image/*" capture="environment" style="display:none" onchange="handlePhoto(this)">
       <input type="file" id="galInput" accept="image/*" style="display:none" onchange="handlePhoto(this)">
 
@@ -120,7 +128,9 @@ nav button span.ico{font-size:18px}
       </div>
 
       <img id="photoPreview" class="preview-img" alt="Vorschau">
-      <button id="savePhotoBtn" class="btn btn-green" style="display:none" onclick="savePhotoEntry()">💾 Mit GPS-Stempel speichern</button>
+      <div id="savePhotoRow" style="display:none">
+        <button class="btn btn-green" onclick="savePhotoEntry()">💾 Speichern &amp; in Galerie sichern</button>
+      </div>
     </div>
   </section>
 
@@ -177,9 +187,11 @@ nav button span.ico{font-size:18px}
   <!-- TAB 5: ÜBERSICHT & EXPORT -->
   <section id="tab-export" class="tab">
     <div class="card">
-      <h2>5. Dokumentation &amp; Datensicherung</h2>
+      <h2>5. Foto-Album &amp; Datensicherung</h2>
+      <button class="btn btn-green" onclick="saveAllPhotosToGallery()">🖼️ Alle Projekt-Fotos in Foto-Album sichern</button>
+      <button class="btn btn-outline" onclick="exportProjectAlbumZip()">📦 Projekt-Ordner als ZIP (Dateien-App)</button>
       <div class="grid2">
-        <button class="btn btn-primary" onclick="exportReport()">📄 Bau-Report (Druck/PDF)</button>
+        <button class="btn btn-primary" onclick="exportReport()">📄 Bau-Report (PDF)</button>
         <button class="btn btn-outline" onclick="exportCSV()">📊 CSV / Excel</button>
       </div>
       <div class="grid2" style="margin-top:4px">
@@ -209,12 +221,12 @@ nav button span.ico{font-size:18px}
 
 <div id="helpModal" class="modal" onclick="if(event.target===this)this.classList.remove('open')">
   <div class="modal-box">
-    <h2>📲 Auf iPhone als App speichern</h2>
+    <h2>📲 Alle Fotos in ein iPhone-Album legen</h2>
     <p style="font-size:14px;line-height:1.5;margin:10px 0">
-      1. Öffne deine <b>github.io</b>-Adresse in <b>Safari</b>.<br>
-      2. Tippe unten in der Mitte auf das <b>Teilen-Symbol</b> (Viereck mit Pfeil nach oben).<br>
-      3. Wähle <b>„Zum Home-Bildschirm“</b> und tippe oben rechts auf <b>„Hinzufügen“</b>.<br><br>
-      <i>Hinweis: Bei der ersten GPS- oder Kamera-Abfrage bitte „Beim Verwenden erlauben“ wählen.</i>
+      <b>1. Alle Fotos auf einmal sichern:</b><br>
+      Gehe unten auf <b>📋 Bericht</b> und tippe auf <b>„🖼️ Alle Projekt-Fotos in Foto-Album sichern“</b>. Im iOS-Teilen-Menü tippst du auf <b>„X Bilder sichern“</b> – alle Bilder landen sofort mit GPS-Daten in deiner iPhone-Fotos-App.<br><br>
+      <b>2. In Projekt-Album sortieren:</b><br>
+      Öffne die Apple <b>Fotos-App → Zuletzt → Auswählen</b>, markiere die gesicherten Baustellenbilder und tippe unten auf <b>••• → Zu Album hinzufügen → Neues Album</b> (mit deinem Projektnamen).
     </p>
     <button class="btn btn-primary" onclick="document.getElementById('helpModal').classList.remove('open')">Verstanden</button>
   </div>
@@ -319,7 +331,12 @@ function getGPS(cb) {
   navigator.geolocation.getCurrentPosition(pos => {
     if (token !== gpsReqToken) return;
     gpsLoading = false;
-    curGPS = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: Math.round(pos.coords.accuracy) };
+    curGPS = {
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude,
+      alt: pos.coords.altitude || 0,
+      acc: Math.round(pos.coords.accuracy)
+    };
     el.innerHTML = `✅ <b>${curGPS.lat.toFixed(6)}, ${curGPS.lng.toFixed(6)}</b> (±${curGPS.acc}m)`;
     if (rawFileData) drawWatermark();
     if (cb) cb(curGPS);
@@ -363,13 +380,53 @@ function handlePhoto(input) {
   reader.readAsDataURL(file);
 }
 
+function degToDmsRational(deg) {
+  const abs = Math.abs(deg);
+  const d = Math.floor(abs);
+  const mFloat = (abs - d) * 60;
+  const m = Math.floor(mFloat);
+  const s = Math.round((mFloat - m) * 60 * 100);
+  return [[d, 1], [m, 1], [s, 100]];
+}
+
+function embedExifGPS(jpegDataUrl, gps, projName, status, note) {
+  if (!window.piexif) return jpegDataUrl;
+  try {
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const exifDate = `${now.getFullYear()}:${pad(now.getMonth()+1)}:${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    const zeroth = {};
+    const exif = {};
+    const gpsIfd = {};
+
+    zeroth[piexif.ImageIFD.Software] = 'BauDoku Pro';
+    zeroth[piexif.ImageIFD.ImageDescription] = `${projName} | ${status}${note ? ' - ' + note : ''}`;
+    exif[piexif.ExifIFD.DateTimeOriginal] = exifDate;
+
+    if (gps && typeof gps.lat === 'number' && typeof gps.lng === 'number') {
+      gpsIfd[piexif.GPSIFD.GPSLatitudeRef] = gps.lat >= 0 ? 'N' : 'S';
+      gpsIfd[piexif.GPSIFD.GPSLatitude] = degToDmsRational(gps.lat);
+      gpsIfd[piexif.GPSIFD.GPSLongitudeRef] = gps.lng >= 0 ? 'E' : 'W';
+      gpsIfd[piexif.GPSIFD.GPSLongitude] = degToDmsRational(gps.lng);
+      gpsIfd[piexif.GPSIFD.GPSAltitudeRef] = (gps.alt || 0) >= 0 ? 0 : 1;
+      gpsIfd[piexif.GPSIFD.GPSAltitude] = [Math.round(Math.abs(gps.alt || 0) * 10), 10];
+      gpsIfd[piexif.GPSIFD.GPSDateStamp] = `${now.getUTCFullYear()}:${pad(now.getUTCMonth()+1)}:${pad(now.getUTCDate())}`;
+    }
+
+    const exifBytes = piexif.dump({'0th': zeroth, 'Exif': exif, 'GPS': gpsIfd});
+    return piexif.insert(exifBytes, jpegDataUrl);
+  } catch (e) {
+    return jpegDataUrl;
+  }
+}
+
 async function drawWatermark() {
   if (!rawFileData) return;
   const projs = await getAll('projects');
   const proj = projs.find(p => p.id === activeProjId);
   const img = new Image();
   img.onload = () => {
-    const maxW = 1280;
+    const maxW = 1440;
     const scale = Math.min(1, maxW / img.width);
     const c = document.createElement('canvas');
     c.width = img.width * scale;
@@ -377,8 +434,8 @@ async function drawWatermark() {
     const ctx = c.getContext('2d');
     ctx.drawImage(img, 0, 0, c.width, c.height);
 
-    const barH = Math.max(54, c.height * 0.085);
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.82)';
+    const barH = Math.max(58, c.height * 0.088);
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.84)';
     ctx.fillRect(0, c.height - barH, c.width, barH);
     ctx.fillStyle = curStatus === 'Ist-Zustand' ? '#fb923c' : '#4ade80';
     ctx.fillRect(0, c.height - barH, 10, barH);
@@ -392,41 +449,123 @@ async function drawWatermark() {
     ctx.fillStyle = '#cbd5e1';
     ctx.fillText(`GPS: ${gpsStr} | ${new Date().toLocaleString('de-DE')}`, 20, c.height - 12);
 
-    curImgData = c.toDataURL('image/jpeg', 0.82);
+    const rawJpeg = c.toDataURL('image/jpeg', 0.86);
+    curImgData = embedExifGPS(rawJpeg, curGPS, proj ? proj.name : 'BauDoku', curStatus, document.getElementById('fNote').value.trim());
+
     const prev = document.getElementById('photoPreview');
     prev.src = curImgData;
     prev.style.display = 'block';
-    document.getElementById('savePhotoBtn').style.display = 'flex';
+    document.getElementById('savePhotoRow').style.display = 'block';
   };
   img.src = rawFileData;
 }
 
-function savePhotoEntry() {
+function dataUrlToBlob(dataUrl) {
+  const parts = dataUrl.split(',');
+  const mime = parts[0].match(/:(.*?);/)[1];
+  const bin = atob(parts[1]);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], {type: mime});
+}
+
+function cleanFileName(s) {
+  return String(s || 'Projekt').replace(/[^a-zA-Z0-9äöüÄÖÜß_-]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
+async function shareToGallery(dataUrl, fileName, title) {
+  try {
+    const blob = dataUrlToBlob(dataUrl);
+    const file = new File([blob], fileName, {type: 'image/jpeg'});
+    if (navigator.canShare && navigator.canShare({files: [file]})) {
+      await navigator.share({files: [file], title});
+      return true;
+    }
+  } catch (e) {}
+  const a = document.createElement('a');
+  a.href = dataUrl;
+  a.download = fileName;
+  a.click();
+  return false;
+}
+
+async function savePhotoEntry() {
   if (!curImgData || !activeProjId) return;
   if (gpsLoading && !curGPS) {
     return alert('⏳ GPS-Position wird noch ermittelt – bitte 1–2 Sekunden warten.');
   }
+  const projs = await getAll('projects');
+  const proj = projs.find(p => p.id === activeProjId);
+  const projSlug = cleanFileName(proj ? proj.name : 'Projekt');
+  const statusSlug = curStatus === 'Ist-Zustand' ? 'Ist' : 'Nachher';
+  const fileName = `${projSlug}_${statusSlug}_${Date.now()}.jpg`;
+  const imgToSave = curImgData;
+  const doShare = document.getElementById('autoGalleryShare').checked;
+
   const entry = {
     id: 'ph_' + Date.now(),
     ts: Date.now(),
     projId: activeProjId,
+    fileName,
     status: curStatus,
     gps: curGPS ? { ...curGPS } : null,
     note: document.getElementById('fNote').value.trim(),
     time: new Date().toLocaleString('de-DE'),
-    img: curImgData
+    img: imgToSave
   };
-  tx('photos', 'readwrite').put(entry).onsuccess = () => {
+
+  tx('photos', 'readwrite').put(entry).onsuccess = async () => {
     rawFileData = null;
     curImgData = null;
     curGPS = null;
     document.getElementById('gpsText').textContent = 'Bereit – wird bei nächster Aufnahme neu erfasst';
     document.getElementById('fNote').value = '';
     document.getElementById('photoPreview').style.display = 'none';
-    document.getElementById('savePhotoBtn').style.display = 'none';
-    alert('✅ Foto mit aktueller GPS-Position gespeichert!');
+    document.getElementById('savePhotoRow').style.display = 'none';
     renderProjectData();
+    if (doShare) {
+      await shareToGallery(imgToSave, fileName, `${proj ? proj.name : 'BauDoku'} – ${entry.status}`);
+    } else {
+      alert('✅ Foto mit GPS-EXIF-Daten gespeichert!');
+    }
   };
+}
+
+// --- ALLE FOTOS AUF EINMAL INS FOTO-ALBUM SPEICHERN ---
+async function saveAllPhotosToGallery() {
+  const projs = await getAll('projects');
+  const proj = projs.find(p => p.id === activeProjId);
+  const photos = (await getAll('photos')).filter(p => p.projId === activeProjId);
+  if (!photos.length) return alert('In diesem Projekt sind noch keine Fotos vorhanden.');
+
+  const folderName = cleanFileName(proj ? proj.name : 'BauDoku_Projekt');
+  const files = photos.map((p, idx) => {
+    const st = p.status === 'Ist-Zustand' ? 'Ist' : 'Nachher';
+    const notePart = p.note ? '_' + cleanFileName(p.note).slice(0, 20) : '';
+    const fname = `${folderName}_${String(idx+1).padStart(2,'0')}_${st}${notePart}.jpg`;
+    return new File([dataUrlToBlob(p.img)], fname, {type: 'image/jpeg'});
+  });
+
+  if (navigator.canShare && navigator.canShare({files})) {
+    try {
+      await navigator.share({
+        files,
+        title: `${proj ? proj.name : 'BauDoku'} (${files.length} Fotos)`
+      });
+      return;
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;
+    }
+  }
+  // Fallback falls Browser kein Multi-File-Share unterstützt:
+  alert('Dein Browser erlaubt kein gleichzeitiges Teilen mehrerer Bilder – die Fotos werden jetzt einzeln heruntergeladen.');
+  for (const f of files) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(f);
+    a.download = f.name;
+    a.click();
+    await new Promise(r => setTimeout(r, 250));
+  }
 }
 
 function getTileLayer(sat) {
@@ -587,6 +726,47 @@ function saveTrack() {
   };
 }
 
+async function saveSinglePhotoById(id) {
+  const photos = await getAll('photos');
+  const p = photos.find(x => x.id === id);
+  if (!p) return;
+  const projs = await getAll('projects');
+  const proj = projs.find(x => x.id === p.projId);
+  const fname = p.fileName || `${cleanFileName(proj?proj.name:'Projekt')}_${p.id}.jpg`;
+  await shareToGallery(p.img, fname, `${proj?proj.name:'BauDoku'} – ${p.status}`);
+}
+
+async function exportProjectAlbumZip() {
+  if (!window.JSZip) return alert('ZIP-Modul lädt noch – bitte kurz warten.');
+  const projs = await getAll('projects');
+  const proj = projs.find(p => p.id === activeProjId);
+  const photos = (await getAll('photos')).filter(p => p.projId === activeProjId);
+  if (!photos.length) return alert('In diesem Projekt sind noch keine Fotos vorhanden.');
+
+  const zip = new JSZip();
+  const folderName = cleanFileName(proj ? proj.name : 'BauDoku_Album');
+  const folder = zip.folder(folderName);
+
+  photos.forEach((p, idx) => {
+    const st = p.status === 'Ist-Zustand' ? 'Ist-Zustand' : 'Zustand-nachher';
+    const notePart = p.note ? '_' + cleanFileName(p.note).slice(0, 24) : '';
+    const name = `${String(idx+1).padStart(2,'0')}_${st}${notePart}.jpg`;
+    const base64 = p.img.split(',')[1];
+    folder.file(name, base64, {base64: true});
+  });
+
+  const blob = await zip.generateAsync({type: 'blob'});
+  const zipName = `${folderName}_GPS_Fotos.zip`;
+  const file = new File([blob], zipName, {type: 'application/zip'});
+  if (navigator.canShare && navigator.canShare({files: [file]})) {
+    try { await navigator.share({files: [file], title: folderName}); return; } catch (e) {}
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = zipName;
+  a.click();
+}
+
 async function renderProjectData() {
   const photos = (await getAll('photos')).filter(p => p.projId === activeProjId);
   const tracks = (await getAll('tracks')).filter(t => t.projId === activeProjId);
@@ -601,6 +781,7 @@ async function renderProjectData() {
         <div style="font-weight:600;margin-top:3px">${esc(p.note||'Ohne Notiz')}</div>
         <div style="color:#64748b;font-size:11px">${p.gps ? p.gps.lat.toFixed(5)+', '+p.gps.lng.toFixed(5) : 'Kein GPS'} · ${p.time}</div>
       </div>
+      <button class="btn-xs" style="background:#0284c7" onclick="saveSinglePhotoById('${p.id}')" title="In Galerie sichern">📲</button>
       <button class="btn-xs btn-danger" onclick="delItem('photos','${p.id}')">✕</button>
     </div>`).join('') : 'Keine Einträge vorhanden.';
 
@@ -688,4 +869,3 @@ function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&
 </script>
 </body>
 </html>
-
